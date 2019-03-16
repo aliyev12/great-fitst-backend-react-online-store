@@ -1,4 +1,6 @@
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcryptjs')
+    jwt = require('jsonwebtoken');
+
 
 const Mutations = {
   //   createItem(data: ItemCreateInput!): Item!
@@ -47,6 +49,16 @@ const Mutations = {
             permissions: { set: ['USER'] }
         }
     }, info);
+    // Create the JWT token for user
+    const token = jwt.sign({ userId: user.id }, process.env.APP_SECRET);
+    // We set the JWT as a cookie on the response so every time that click on another page the token comes on the ride
+    ctx.response.cookie('token', token, {
+        // Make sure that its HTTP only so that a third party cannot get it with JavaScript, or some rogue browser extension etc.
+        httpOnly: true,
+        maxAge: 1000 * 60 * 60 * 24 * 10 // This will set timeout for 10 day. You can add * 365 for it to be a year
+    });
+    // Finally, we return the user to the browser
+    return user;
   } 
 };
 
