@@ -1,5 +1,7 @@
 const bcrypt = require ('bcryptjs');
 jwt = require ('jsonwebtoken');
+const { randomBytes } = require('crypto');
+const { promisify } = require('util');
 
 // This function will create/sign a JWT token, and it will attache a cookie with that token to response
 const signCookie = (ctx, userId) => {
@@ -110,8 +112,20 @@ const Mutations = {
   /*=== SIGN OUT ===*/
   /*===================*/
   signout (parents, args, ctx, info) {
-      ctx.response.clearCookie('token');
-      return { message: 'Goodbye!' };
+    ctx.response.clearCookie ('token');
+    return {message: 'Goodbye!'};
+  },
+
+  /*===================*/
+  /*=== SIGN OUT ===*/
+  /*===================*/
+  async requestReset (parents, args, ctx, info) {
+      // 1. Check if this is a real user
+      const user = await ctx.db.query.user({ where: { email: args.email } });
+      if(!user) throw new Error (`No such user found for email ${args.email}`);
+      // 2. Set a reset token and expiry on that user
+    const resetToken = 
+      // 3. Email them reset token
   },
 };
 
