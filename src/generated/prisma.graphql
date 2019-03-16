@@ -454,7 +454,7 @@ type User implements Node {
   password: String!
   resetToken: String
   resetTokenExpiry: Float
-  permissions: [Permission!]!
+  permissions: [Permission]
 }
 
 """A connection to a list of items."""
