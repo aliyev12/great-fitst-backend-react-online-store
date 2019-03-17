@@ -1,7 +1,7 @@
 const bcrypt = require ('bcryptjs');
 jwt = require ('jsonwebtoken');
-const { randomBytes } = require('crypto');
-const { promisify } = require('util');
+const {randomBytes} = require ('crypto');
+const {promisify} = require ('util');
 
 // This function will create/sign a JWT token, and it will attache a cookie with that token to response
 const signCookie = (ctx, userId) => {
@@ -117,16 +117,41 @@ const Mutations = {
   },
 
   /*===================*/
-  /*=== SIGN OUT ===*/
+  /*=== REQUEST RESET ===*/
   /*===================*/
   async requestReset (parents, args, ctx, info) {
-      // 1. Check if this is a real user
-      const user = await ctx.db.query.user({ where: { email: args.email } });
-      if(!user) throw new Error (`No such user found for email ${args.email}`);
-      // 2. Set a reset token and expiry on that user
-    const resetToken = 
-      // 3. Email them reset token
+    // 1. Check if this is a real user
+    const user = await ctx.db.query.user ({where: {email: args.email}});
+    if (!user) throw new Error (`No such user found for email ${args.email}`);
+    // 2. Set a reset token and expiry on that user
+    // Create 20 randomBytes, make them into a promise in order to be able to use .then() instead of call back functions. Then translate that into a hex string
+    const randomBytesPromiseified = promisify(randomBytes);
+    const resetToken = (await randomBytesPromiseified(20)).toString ('hex');
+    // Set 1 hour expiration for reset token
+    const resetTokenExpiry = Date.now() + 3600000; // 1 hour from now
+    // Update a user whose email matches whatever was received in the arguments to this call, and add two new entries to that user: resetToken and resetTokenExpiry
+    const res = await ctx.db.mutation.updateUser({
+        where: { email: args.email },
+        data: { resetToken, resetTokenExpiry }
+    });
+    delete res.password;
+    console.log(res);
+    // 3. Email them reset token
+    return { message: 'Thanks!' }
   },
+
+  /*===================*/
+  /*=== RESET PASSWORD ===*/
+  /*===================*/
+  async resetPassword(parents, args, ctx, info) {
+      // 1. Check if the passwords match
+      // 2. Check if its a legit reset token
+      // 3. Check if its expired
+      // 4. Hash user's new password
+      // 5. Save the new password to the user and remove old reset token fields
+      // 6. Generate JWT and set the JWT cookie
+      // 7. Return the new user
+  } 
 };
 
 module.exports = Mutations;

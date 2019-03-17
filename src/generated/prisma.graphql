@@ -1,5 +1,5 @@
 # source: https://eu1.prisma.sh/abdul-aliyev/great-fits/dev
-# timestamp: Sat Mar 16 2019 11:23:58 GMT-0400 (Eastern Daylight Time)
+# timestamp: Sat Mar 16 2019 19:36:32 GMT-0400 (Eastern Daylight Time)
 
 type AggregateItem {
   count: Int!
@@ -454,7 +454,7 @@ type User implements Node {
   password: String!
   resetToken: String
   resetTokenExpiry: Float
-  permissions: [Permission]
+  permissions: [Permission!]!
 }
 
 """A connection to a list of items."""
