@@ -6,7 +6,7 @@ const {promisify} = require ('util');
 // This function will create/sign a JWT token, and it will attache a cookie with that token to response
 const signCookie = (ctx, userId) => {
   // Generage the JWT token
-  const token = jwt.sign ({userId}, process.env.APP_SECRET);
+  const token = jwt.sign ({userId: userId}, process.env.APP_SECRET);
   // We set the JWT as a cookie on the response so every time that user clicks on another page, the token comes on the ride
   return ctx.response.cookie ('token', token, {
     // Make sure that its HTTP only so that a third party cannot get it with JavaScript, or some rogue browser extension etc.
@@ -135,7 +135,6 @@ const Mutations = {
       data: {resetToken, resetTokenExpiry},
     });
     delete res.password;
-    console.log (res);
     // 3. Email them reset token
     return {message: 'Thanks!'};
   },
@@ -144,37 +143,40 @@ const Mutations = {
   /*=== RESET PASSWORD ===*/
   /*===================*/
   async resetPassword (parents, args, ctx, info) {
-    // 1. Check if the passwords match
-    if (args.password !== args.confirmPassword)
+    // 1. Check if all arguments were provided and if the passwords match
+    const { resetToken, password, confirmPassword } = args;
+    if (!resetToken || !password || !confirmPassword)
+      throw new Error ('Please, provide all the required information');
+    if (password !== confirmPassword)
       throw new Error ('Passwords did not match.');
-    // 2. Check if its a legit reset token
-
-    // 3. Check if its expired
-    // Destructure user from a users query
+    // 2. Check if its a legit reset token and its not expired
+    // Destructure user from a users query. 
+    // Syntax below will extract the one only FIRST user from users array. Its equivalent to users[0] and name "user" can be anything
     const [user] = await ctx.db.query.users ({
       where: {
-        // Search for user with matching resetToken
-        resetToken: args.resetToken,
+        // Search for user with matching resetToken (this is a "where" option UserWhereInput in prisma.graphql file)
+        resetToken: resetToken,
         // Check that the expiration of that token is still within one hour
         resetTokenExpiry_gte: Date.now () - 3600000, // --> expiration is more than one hour ago
       },
     });
+
     // If no user matches with the given token, then we throw an error
     if (!user) throw new Error ('This token is either invalid or expired.');
-    // 4. Hash user's new password with 10 Salt digits using brcypt
-    const password = await bcrypt.hash(args.password, 10);
-    // 5. Save the new password to the user and remove old reset token fields
-    const updatedUser = await ctx.db.mutation.updateUser({
-        where: { email: user.email },
-        data: {
-            password,
-            resetToken: null,
-            resetTokenExpiry: null
-        }
+    // 3. Hash user's new password with 10 Salt digits using brcypt
+    const hashedPassword = await bcrypt.hash (password, 10);
+    // 4. Save the new password to the user and remove old reset token fields
+    const updatedUser = await ctx.db.mutation.updateUser ({
+      where: {email: user.email},
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
     });
-    // 6. Generate JWT and set the JWT cookie
-    signCookie(ctx, updatedUser.id);
-    // 7. Return the new user
+    // 5. Generate JWT and set the JWT cookie
+    signCookie (ctx, updatedUser.id);
+    // 6. Return the new user
     return user;
   },
 };
