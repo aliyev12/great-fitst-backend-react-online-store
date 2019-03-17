@@ -125,33 +125,58 @@ const Mutations = {
     if (!user) throw new Error (`No such user found for email ${args.email}`);
     // 2. Set a reset token and expiry on that user
     // Create 20 randomBytes, make them into a promise in order to be able to use .then() instead of call back functions. Then translate that into a hex string
-    const randomBytesPromiseified = promisify(randomBytes);
-    const resetToken = (await randomBytesPromiseified(20)).toString ('hex');
+    const randomBytesPromiseified = promisify (randomBytes);
+    const resetToken = (await randomBytesPromiseified (20)).toString ('hex');
     // Set 1 hour expiration for reset token
-    const resetTokenExpiry = Date.now() + 3600000; // 1 hour from now
+    const resetTokenExpiry = Date.now () + 3600000; // 1 hour from now
     // Update a user whose email matches whatever was received in the arguments to this call, and add two new entries to that user: resetToken and resetTokenExpiry
-    const res = await ctx.db.mutation.updateUser({
-        where: { email: args.email },
-        data: { resetToken, resetTokenExpiry }
+    const res = await ctx.db.mutation.updateUser ({
+      where: {email: args.email},
+      data: {resetToken, resetTokenExpiry},
     });
     delete res.password;
-    console.log(res);
+    console.log (res);
     // 3. Email them reset token
-    return { message: 'Thanks!' }
+    return {message: 'Thanks!'};
   },
 
   /*===================*/
   /*=== RESET PASSWORD ===*/
   /*===================*/
-  async resetPassword(parents, args, ctx, info) {
-      // 1. Check if the passwords match
-      // 2. Check if its a legit reset token
-      // 3. Check if its expired
-      // 4. Hash user's new password
-      // 5. Save the new password to the user and remove old reset token fields
-      // 6. Generate JWT and set the JWT cookie
-      // 7. Return the new user
-  } 
+  async resetPassword (parents, args, ctx, info) {
+    // 1. Check if the passwords match
+    if (args.password !== args.confirmPassword)
+      throw new Error ('Passwords did not match.');
+    // 2. Check if its a legit reset token
+
+    // 3. Check if its expired
+    // Destructure user from a users query
+    const [user] = await ctx.db.query.users ({
+      where: {
+        // Search for user with matching resetToken
+        resetToken: args.resetToken,
+        // Check that the expiration of that token is still within one hour
+        resetTokenExpiry_gte: Date.now () - 3600000, // --> expiration is more than one hour ago
+      },
+    });
+    // If no user matches with the given token, then we throw an error
+    if (!user) throw new Error ('This token is either invalid or expired.');
+    // 4. Hash user's new password with 10 Salt digits using brcypt
+    const password = await bcrypt.hash(args.password, 10);
+    // 5. Save the new password to the user and remove old reset token fields
+    const updatedUser = await ctx.db.mutation.updateUser({
+        where: { email: user.email },
+        data: {
+            password,
+            resetToken: null,
+            resetTokenExpiry: null
+        }
+    });
+    // 6. Generate JWT and set the JWT cookie
+    signCookie(ctx, updatedUser.id);
+    // 7. Return the new user
+    return user;
+  },
 };
 
 module.exports = Mutations;
