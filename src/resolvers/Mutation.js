@@ -2,6 +2,7 @@ const bcrypt = require ('bcryptjs');
 jwt = require ('jsonwebtoken');
 const {randomBytes} = require ('crypto');
 const {promisify} = require ('util');
+const { transport, makeANiceEmail } = require('../mail');
 
 // This function will create/sign a JWT token, and it will attache a cookie with that token to response
 const signCookie = (ctx, userId) => {
@@ -136,6 +137,15 @@ const Mutations = {
     });
     delete res.password;
     // 3. Email them reset token
+    const mailRes = await transport.sendMail({
+        from: 'greatfitsapp@gmail.com',
+        to: user.email,
+        subject: 'Your Password Reset Token',
+        html: makeANiceEmail(`Your password reset token is here 
+        \n\n 
+        <a href="${process.env.FRONTEND_URL}/reset?resetToken=${resetToken}">Click here</a>`)
+    });
+
     return {message: 'Thanks!'};
   },
 
