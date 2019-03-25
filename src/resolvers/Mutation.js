@@ -2,7 +2,8 @@ const bcrypt = require ('bcryptjs');
 jwt = require ('jsonwebtoken');
 const {randomBytes} = require ('crypto');
 const {promisify} = require ('util');
-const { transport, makeANiceEmail } = require('../mail');
+const {transport, makeANiceEmail} = require ('../mail');
+const {hasPermission} = require ('../utils');
 
 // This function will create/sign a JWT token, and it will attache a cookie with that token to response
 const signCookie = (ctx, userId) => {
@@ -22,9 +23,24 @@ const Mutations = {
   /*===================*/
   //   createItem(data: ItemCreateInput!): Item!
   async createItem (parent, args, ctx, info) {
-    // TODO: Check if they are logged in
+    // Check if they are logged in
+    if (!ctx.request.userId)
+      throw new Error ('You must be logges in to do that!');
 
-    const item = await ctx.db.mutation.createItem ({data: {...args}}, info);
+    const item = await ctx.db.mutation.createItem (
+      {
+        data: {
+          // This is how to create a relationship between item and user in prisma
+          user: {
+            connect: {
+              id: ctx.request.userId,
+            },
+          },
+          ...args,
+        },
+      },
+      info
+    );
     return item;
   },
 
@@ -55,11 +71,27 @@ const Mutations = {
   async deleteItem (parent, args, ctx, info) {
     const where = {id: args.id};
     // 1. Find the item
-    const item = await ctx.db.query.item ({where}, `{id, title}`);
+    const item = await ctx.db.query.item (
+      {where},
+      `{
+            id, 
+            title,
+            user {
+                id
+            }
+        }`
+    );
     // 2. Check if they own that item, or have the permissions
-    // TODO
-    // 3. Delete it!
-    return ctx.db.mutation.deleteItem ({where}, info);
+    const ownsItem = item.user.id === ctx.request.userId;
+    const hasPermissions = ctx.request.user.permissions.some (permission =>
+      ['ADMIN', 'ITEMDELETE'].includes (permission)
+    );
+    if (ownsItem || hasPermissions) {
+      // 3. Delete it!
+      return ctx.db.mutation.deleteItem ({where}, info);
+    } else {
+      throw new Error (`You don't have permission to do that!`);
+    }
   },
 
   /*===================*/
@@ -137,13 +169,13 @@ const Mutations = {
     });
     delete res.password;
     // 3. Email them reset token
-    const mailRes = await transport.sendMail({
-        from: 'greatfitsapp@gmail.com',
-        to: user.email,
-        subject: 'Your Password Reset Token',
-        html: makeANiceEmail(`Your password reset token is here 
+    const mailRes = await transport.sendMail ({
+      from: 'greatfitsapp@gmail.com',
+      to: user.email,
+      subject: 'Your Password Reset Token',
+      html: makeANiceEmail (`Your password reset token is here 
         \n\n 
-        <a href="${process.env.FRONTEND_URL}/reset?resetToken=${resetToken}">Click here</a>`)
+        <a href="${process.env.FRONTEND_URL}/reset?resetToken=${resetToken}">Click here</a>`),
     });
 
     return {message: 'Thanks!'};
@@ -154,13 +186,13 @@ const Mutations = {
   /*===================*/
   async resetPassword (parents, args, ctx, info) {
     // 1. Check if all arguments were provided and if the passwords match
-    const { resetToken, password, confirmPassword } = args;
+    const {resetToken, password, confirmPassword} = args;
     if (!resetToken || !password || !confirmPassword)
       throw new Error ('Please, provide all the required information');
     if (password !== confirmPassword)
       throw new Error ('Passwords did not match.');
     // 2. Check if its a legit reset token and its not expired
-    // Destructure user from a users query. 
+    // Destructure user from a users query.
     // Syntax below will extract the one only FIRST user from users array. Its equivalent to users[0] and name "user" can be anything
     const [user] = await ctx.db.query.users ({
       where: {
@@ -187,7 +219,40 @@ const Mutations = {
     // 5. Generate JWT and set the JWT cookie
     signCookie (ctx, updatedUser.id);
     // 6. Return the new user
-    return user;
+    return updatedUser;
+  },
+
+  /*===================*/
+  /*=== UPDATE PERMISSIONS ===*/
+  /*===================*/
+  async updatePermissions (parent, args, ctx, info) {
+    // 1. Check if they are logged in
+    if (!ctx.request.userId) throw new Error ('You must be logged in!');
+    // 2. Query the current user
+    const currentUser = await ctx.db.query.user (
+      {
+        where: {
+          id: ctx.request.userId,
+        },
+      },
+      info
+    );
+    // 3. Check if they have permissions to do that
+    hasPermission (currentUser, ['ADMIN', 'PERMISSIONUPDATE']);
+    // 4. Update the permissions
+    return ctx.db.mutation.updateUser (
+      {
+        data: {
+          permissions: {
+            set: args.permissions,
+          },
+        },
+        where: {
+          id: args.userId,
+        },
+      },
+      info
+    );
   },
 };
 
