@@ -6,32 +6,38 @@ type SuccessMessage {
 
 type Mutation {
     createItem(
-        title: String, 
-        description: String, 
-        price: Int, 
-        image: String, 
-        largeImage: String): Item!
-    updateItem(
-        id: ID!,
-        title: String,
-        description: String,
+        title: String
+        description: String
         price: Int
+        image: String
+        largeImage: String
     ): Item!
+    updateItem(id: ID!, title: String, description: String, price: Int): Item!
     deleteItem(id: ID!): Item
     signup(email: String!, password: String!, name: String!): User!
     signin(email: String!, password: String!): User!
     signout: SuccessMessage
     requestReset(email: String!): SuccessMessage
-    resetPassword(resetToken: String!, password: String!, confirmPassword: String!): User!
+    resetPassword(
+        resetToken: String!
+        password: String!
+        confirmPassword: String!
+    ): User!
     updatePermissions(permissions: [Permission], userId: ID!): User
     addToCart(id: ID!): CartItem
+    removeFromCart(id: ID!): CartItem
 }
 
 type Query {
-    items(where: ItemWhereInput, orderBy: ItemOrderByInput, skip: Int, first: Int): [Item]!
+    items(
+        where: ItemWhereInput
+        orderBy: ItemOrderByInput
+        skip: Int
+        first: Int
+    ): [Item]!
     item(where: ItemWhereUniqueInput!): Item
     # Connection returns data about data - aka meta data
-    itemsConnection(where: ItemWhereInput): ItemConnection! 
+    itemsConnection(where: ItemWhereInput): ItemConnection!
     me: User
     users: [User]!
 }
@@ -41,5 +47,5 @@ type User {
     name: String!
     email: String!
     permissions: [Permission]
-    cart: [CartItem!]!
+    cart: [CartItem]
 }

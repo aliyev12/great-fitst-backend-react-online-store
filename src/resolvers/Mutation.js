@@ -4,6 +4,7 @@ const {randomBytes} = require ('crypto');
 const {promisify} = require ('util');
 const {transport, makeANiceEmail} = require ('../mail');
 const {hasPermission} = require ('../utils');
+require('locus');
 
 // This function will create/sign a JWT token, and it will attache a cookie with that token to response
 const signCookie = (ctx, userId) => {
@@ -271,7 +272,6 @@ const Mutations = {
     });
     // 3. Check if that item is already in their cart and increment by 1 if it is
     if (existingCartItem) {
-      console.log ('This item is already in their cart');
       return ctx.db.mutation.updateCartItem (
         {
           where: {id: existingCartItem.id},
@@ -295,6 +295,30 @@ const Mutations = {
       info
     );
   },
+
+
+  /*===================*/
+  /*=== REMOVE FROM CART ===*/
+  /*===================*/
+  async removeFromCart(parent, args, ctx, info) {
+      // 1. Find the cart item
+      const cartItem = await ctx.db.query.cartItem ({
+        where: {
+            id: args.id
+        }
+      }, `{ id, user { id }}`);
+      // eval(locus);
+      // 1.5 Make sure we found an item
+      if (!cartItem) throw new Error('No cart item found');
+      // 2. Make sure they own that cart item
+      if (cartItem.user.id !== ctx.request.userId) throw new Error('You do not have a permission to do that ');
+      // 3. Delete that cart item
+      return ctx.db.mutation.deleteCartItem ({
+        where: { id: args.id }
+      }, info);
+  },
+
+
 };
 
 module.exports = Mutations;

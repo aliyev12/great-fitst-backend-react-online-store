@@ -31,5 +31,8 @@
     "presets": [
       "env"
     ]
+  },
+  "devDependencies": {
+    "locus": "^2.0.1"
   }
 }
